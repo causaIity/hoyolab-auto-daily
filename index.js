@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const cookies = process.env.COOKIE.split('\n').map(s => s.trim());
-const gamesList = process.env.GAMES.split('\n').map(s => s.trim());
+const cookies = process.env.COOKIE?.split('\n').map(s => s.trim());
+const gamesList = process.env.GAMES?.split('\n').map(s => s.trim());
 const discordWebhook = process.env.DISCORD_WEBHOOK;
 const discordUser = process.env.DISCORD_USER;
 const msgDelimiter = ':';
@@ -14,9 +14,9 @@ const endpoints = {
   tot: 'https://sg-public-api.hoyolab.com/event/luna/os/sign?act_id=e202202281857121',
 };
 
-let hasErrors = false;
+let fatalErrors = false;
 let latestGames = [];
-const accountGamesCheckedIn = {}; // Tracks successful games per account
+const accountGamesCheckedIn = {};
 
 function formatGameList(games) {
   if (games.length === 1) return games[0];
@@ -41,6 +41,7 @@ async function run(cookie, games, accountIndex) {
 
     if (!(game in endpoints)) {
       log('error', `Game ${game} is invalid. Available games are: zzz, gi, hsr, hi3, and tot`);
+      fatalErrors = true;
       continue;
     }
 
@@ -51,37 +52,38 @@ async function run(cookie, games, accountIndex) {
     url.searchParams.set('lang', 'en-us');
 
     const body = JSON.stringify({ lang: 'en-us', act_id: actId });
-    const headers = new Headers();
-
-    headers.set('accept', 'application/json, text/plain, */*');
-    headers.set('accept-encoding', 'gzip, deflate, br, zstd');
-    headers.set('accept-language', 'en-US,en;q=0.6');
-    headers.set('connection', 'keep-alive');
-    headers.set('origin', 'https://act.hoyolab.com');
-    headers.set('referrer', 'https://act.hoyolab.com');
-    headers.set('content-type', 'application/json;charset=UTF-8');
-    headers.set('cookie', cookie);
-    headers.set('sec-ch-ua', '"Not/A)Brand";v="8", "Chromium";v="126", "Brave";v="126"');
-    headers.set('sec-ch-ua-mobile', '?0');
-    headers.set('sec-ch-ua-platform', '"Linux"');
-    headers.set('sec-fetch-dest', 'empty');
-    headers.set('sec-fech-mode', 'cors');
-    headers.set('sec-fetch-site', 'same-site');
-    headers.set('sec-gpc', '1');
-    headers.set("x-rpc-signgame", game);
-    headers.set('user-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36');
+    const headers = new Headers({
+      'accept': 'application/json, text/plain, */*',
+      'accept-encoding': 'gzip, deflate, br, zstd',
+      'accept-language': 'en-US,en;q=0.6',
+      'connection': 'keep-alive',
+      'origin': 'https://act.hoyolab.com',
+      'referer': 'https://act.hoyolab.com',
+      'content-type': 'application/json;charset=UTF-8',
+      'cookie': cookie,
+      'sec-ch-ua': '"Not/A)Brand";v="8", "Chromium";v="126", "Brave";v="126"',
+      'sec-ch-ua-mobile': '?0',
+      'sec-ch-ua-platform': '"Linux"',
+      'sec-fetch-dest': 'empty',
+      'sec-fetch-mode': 'cors',
+      'sec-fetch-site': 'same-site',
+      'sec-gpc': '1',
+      'x-rpc-signgame': game,
+      'user-agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
+    });
 
     const res = await fetch(url, { method: 'POST', headers, body });
     const json = await res.json();
     const code = String(json.retcode);
+
     const successCodes = {
       '0': 'Successfully checked in!',
       '-5003': 'Already checked in for today',
     };
 
     if (code in successCodes) {
-      log('info', game, `${successCodes[code]}`);
-      accountGamesCheckedIn[accountIndex].push(formatGameName(game)); // Track
+      log('info', game, successCodes[code]);
+      accountGamesCheckedIn[accountIndex].push(formatGameName(game));
       continue;
     }
 
@@ -94,11 +96,13 @@ async function run(cookie, games, accountIndex) {
     log('debug', game, `Response`, json);
 
     if (code in errorCodes) {
-      log('error', game, `${errorCodes[code]}`);
+      log('error', game, errorCodes[code]);
+      fatalErrors = true;
       continue;
     }
 
-    log('error', game, `Error undocumented, report to Issues page if this persists`);
+    log('error', game, 'Error undocumented, report to Issues page if this persists');
+    fatalErrors = true;
   }
 }
 
@@ -116,27 +120,25 @@ function formatGameName(code) {
 function log(type, ...data) {
   console[type](...data);
 
-  switch (type) {
-    case 'debug': return;
-    case 'error': hasErrors = true;
-  }
-
   if (data[0] in endpoints) {
     data[0] = data[0].toUpperCase() + msgDelimiter;
   }
 
-  const string = data
-    .map(value => typeof value === 'object' ? JSON.stringify(value, null, 2).replace(/^"|"$/, '') : value)
-    .join(' ');
+  if (type !== 'debug') {
+    const string = data
+      .map(value => typeof value === 'object' ? JSON.stringify(value, null, 2).replace(/^"|"$/, '') : value)
+      .join(' ');
 
-  messages.push({ type, string });
+    messages.push({ type, string });
+  }
 }
 
 async function discordWebhookSend() {
   log('debug', '\n----- DISCORD WEBHOOK -----');
 
-  if (!discordWebhook.toLowerCase().trim().startsWith('https://discord.com/api/webhooks/')) {
+  if (!discordWebhook?.toLowerCase().trim().startsWith('https://discord.com/api/webhooks/')) {
     log('error', 'DISCORD_WEBHOOK is not a valid Discord webhook URL.');
+    fatalErrors = true;
     return;
   }
 
@@ -164,29 +166,32 @@ async function discordWebhookSend() {
   }
 
   log('error', 'Error sending message to Discord webhook, please check URL and permissions');
+  fatalErrors = true;
 }
 
 function ordinalSuffix(i) {
   const j = i % 10, k = i % 100;
-  if (j == 1 && k != 11) return 'st';
-  if (j == 2 && k != 12) return 'nd';
-  if (j == 3 && k != 13) return 'rd';
+  if (j === 1 && k !== 11) return 'st';
+  if (j === 2 && k !== 12) return 'nd';
+  if (j === 3 && k !== 13) return 'rd';
   return 'th';
 }
 
-if (!cookies || !cookies.length) throw new Error('COOKIE environment variable not set!');
-if (!gamesList || !gamesList.length) throw new Error('GAMES environment variable not set!');
+(async () => {
+  if (!cookies?.length) throw new Error('COOKIE environment variable not set!');
+  if (!gamesList?.length) throw new Error('GAMES environment variable not set!');
 
-for (const index in cookies) {
-  log('info', `-- CHECKING IN FOR ACCOUNT ${Number(index) + 1} --`);
-  await run(cookies[index], gamesList[index], index);
-}
+  for (const index in cookies) {
+    log('info', `-- CHECKING IN FOR ACCOUNT ${Number(index) + 1} --`);
+    await run(cookies[index], gamesList[index], index);
+  }
 
-if (discordWebhook && URL.canParse(discordWebhook)) {
-  await discordWebhookSend();
-}
+  if (discordWebhook) {
+    await discordWebhookSend();
+  }
 
-if (hasErrors) {
-  console.log('');
-  throw new Error('Error(s) occurred.');
-}
+  if (fatalErrors) {
+    console.log('');
+    throw new Error('One or more fatal errors occurred.');
+  }
+})();
