@@ -30,7 +30,11 @@ function getCounter() {
   try {
     const data = fs.readFileSync(counterFilePath);
     const json = JSON.parse(data);
-    return json.processCounter || 0;
+    // Ensure the structure is correct
+    if (typeof json.processCounter === 'number') {
+      return json.processCounter;
+    }
+    return 0; // Default if structure is wrong
   } catch (error) {
     console.error('Error reading counter file:', error);
     return 0; // Default to 0 if the file doesn't exist or an error occurs
