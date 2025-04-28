@@ -149,7 +149,8 @@ async function discordWebhookSend() {
     return;
   }
 
-  let discordMsg = discordUser ? `<@${discordUser}> I've checked your accounts again..` : 'I\'ve checked your accounts again..';
+  // Discord message start with the user mention (on the same line)
+  let discordMsg = discordUser ? `<@${discordUser}> I've checked your accounts again..\n\n` : 'I\'ve checked your accounts again..\n\n';
 
   // Define an object to store game results by account (no duplicates)
   const gameResults = {
@@ -216,6 +217,7 @@ async function discordWebhookSend() {
   log('error', 'Error sending message to Discord webhook, please check URL and permissions');
   fatalErrors = true;
 }
+
 
 function formatAccountNumber(index) {
   return `${parseInt(index) + 1}${ordinalSuffix(parseInt(index) + 1)}`;
