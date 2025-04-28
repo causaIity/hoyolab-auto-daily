@@ -18,6 +18,12 @@ let fatalErrors = false;
 let latestGames = [];
 const accountGamesCheckedIn = {};
 
+function formatGameList(games) {
+  if (games.length === 1) return games[0];
+  if (games.length === 2) return `${games[0]} and ${games[1]}`;
+  return `${games.slice(0, -1).join(', ')}, and ${games.slice(-1)}`;
+}
+
 async function run(cookie, games, accountIndex) {
   if (!games) {
     games = latestGames;
@@ -149,37 +155,24 @@ async function discordWebhookSend() {
     return;
   }
 
-  // Discord message start with the user mention (on the same line)
-  let discordMsg = discordUser ? `<@${discordUser}> I've checked your accounts again..\n\n` : 'I\'ve checked your accounts again..\n\n';
+  let discordMsg = discordUser ? `<@${discordUser}> I've checked your accounts again..` : 'I\'ve checked your accounts again..';
 
-  // Define an object to store game results by account (no duplicates)
   const gameResults = {
     "Honkai: Star Rail": { alreadyCheckedIn: [], didDailies: [] },
     "Genshin Impact": { alreadyCheckedIn: [], didDailies: [] },
     "Zenless Zone Zero": { alreadyCheckedIn: [], didDailies: [] }
   };
 
-  // Use a Set to track accounts to avoid duplicates
-  const processedAccounts = new Set();
-
   for (const accountIndex in accountGamesCheckedIn) {
     const games = accountGamesCheckedIn[accountIndex];
-
-    // Track the account only once per game
-    if (!processedAccounts.has(accountIndex)) {
-      processedAccounts.add(accountIndex);
-
-      for (const game of games) {
-        const gameName = formatGameName(game);
-
-        // Update game results based on whether dailies were already done or not
-        if (gameName === 'Honkai: Star Rail') {
-          gameResults['Honkai: Star Rail'].didDailies.push(formatAccountNumber(accountIndex));
-        } else if (gameName === 'Genshin Impact') {
-          gameResults['Genshin Impact'].didDailies.push(formatAccountNumber(accountIndex));
-        } else if (gameName === 'Zenless Zone Zero') {
-          gameResults['Zenless Zone Zero'].didDailies.push(formatAccountNumber(accountIndex));
-        }
+    for (const game of games) {
+      const gameName = formatGameName(game);
+      if (gameName === 'Honkai: Star Rail') {
+        gameResults['Honkai: Star Rail'].didDailies.push(formatAccountNumber(accountIndex));
+      } else if (gameName === 'Genshin Impact') {
+        gameResults['Genshin Impact'].didDailies.push(formatAccountNumber(accountIndex));
+      } else if (gameName === 'Zenless Zone Zero') {
+        gameResults['Zenless Zone Zero'].didDailies.push(formatAccountNumber(accountIndex));
       }
     }
   }
@@ -218,15 +211,9 @@ async function discordWebhookSend() {
   fatalErrors = true;
 }
 
-
 function formatAccountNumber(index) {
   return `${parseInt(index) + 1}${ordinalSuffix(parseInt(index) + 1)}`;
 }
-
-function formatGameList(accounts) {
-  return accounts.join(', ');
-}
-
 
 function ordinalSuffix(i) {
   const j = i % 10, k = i % 100;
