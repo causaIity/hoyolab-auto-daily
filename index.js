@@ -16,8 +16,7 @@ const endpoints = {
 
 let fatalErrors = false;
 let latestGames = [];
-// Change to array instead of object to ensure sequential numbering
-const accountGamesCheckedIn = [];
+const accountGamesCheckedIn = {};
 
 function formatGameList(items) {
   if (items.length === 1) return items[0];
@@ -33,14 +32,13 @@ async function run(cookie, games, accountIndex) {
     latestGames = games;
   }
 
-  // Ensure accountIndex is treated as a number
-  const accountIdx = parseInt(accountIndex);
-  
-  // Initialize for this account - use array index directly
-  if (!accountGamesCheckedIn[accountIdx]) {
-    accountGamesCheckedIn[accountIdx] = {
+  // Initialize for this account
+  if (!accountGamesCheckedIn[accountIndex]) {
+    accountGamesCheckedIn[accountIndex] = {
       didDailies: [],
-      alreadyCheckedIn: []
+      alreadyCheckedIn: [],
+      // Store the original index for reference
+      originalIndex: parseInt(accountIndex)
     };
   }
 
@@ -92,11 +90,11 @@ async function run(cookie, games, accountIndex) {
 
     if (code === '0') {
       log('info', game, successCodes[code]);
-      accountGamesCheckedIn[accountIdx].didDailies.push(game);
+      accountGamesCheckedIn[accountIndex].didDailies.push(game);
       continue;
     } else if (code === '-5003') {
       log('info', game, successCodes[code]);
-      accountGamesCheckedIn[accountIdx].alreadyCheckedIn.push(game);
+      accountGamesCheckedIn[accountIndex].alreadyCheckedIn.push(game);
       continue;
     }
 
@@ -170,64 +168,95 @@ async function discordWebhookSend() {
 
   let discordMsg = discordUser ? `<@${discordUser}> Draco has checked your accounts again..\n\n` : 'Draco has checked your accounts again..\n\n';
 
+  // Initialize game results structure
   const gameResults = {
-    "Honkai: Star Rail": { alreadyCheckedIn: [], didDailies: [] },
-    "Genshin Impact": { alreadyCheckedIn: [], didDailies: [] },
-    "Zenless Zone Zero": { alreadyCheckedIn: [], didDailies: [] }
+    "Honkai: Star Rail": { accounts: {} },
+    "Genshin Impact": { accounts: {} },
+    "Zenless Zone Zero": { accounts: {} }
   };
 
-  // Create a mapping from original account index to consecutive number
-  const accountMapping = {};
-  let consecutiveNumber = 1;
-  
-  // First pass: create mapping from original indices to consecutive numbers
-  for (let i = 0; i < accountGamesCheckedIn.length; i++) {
-    if (accountGamesCheckedIn[i]) {
-      accountMapping[i] = consecutiveNumber++;
+  // Collect all accounts with activity in any game
+  const accountsWithActivity = new Set();
+  for (const accountIndex in accountGamesCheckedIn) {
+    const accountData = accountGamesCheckedIn[accountIndex];
+    
+    // Check if this account has any activity
+    if (accountData.didDailies.length > 0 || accountData.alreadyCheckedIn.length > 0) {
+      accountsWithActivity.add(parseInt(accountIndex));
     }
   }
 
-  // Process each account's results using the new consecutive numbering
-  for (let i = 0; i < accountGamesCheckedIn.length; i++) {
-    const accountData = accountGamesCheckedIn[i];
-    if (!accountData) continue; // Skip empty accounts
+  // Convert to sorted array for consistent numbering
+  const sortedAccounts = Array.from(accountsWithActivity).sort((a, b) => a - b);
+  
+  // Create mapping from original index to consecutive number
+  const accountMapping = {};
+  sortedAccounts.forEach((originalIndex, i) => {
+    accountMapping[originalIndex] = i + 1; // 1-based consecutive numbering
+  });
+
+  // Process each account's results with the new numbering
+  for (const accountIndex in accountGamesCheckedIn) {
+    const accountData = accountGamesCheckedIn[accountIndex];
     
-    // Use the mapping to get consecutive account numbers
-    const accountNumber = accountMapping[i];
-    const accountNum = `${accountNumber}${ordinalSuffix(accountNumber)}`;
-
-    // Process games that were successfully checked in
-    for (const game of accountData.didDailies) {
-      const gameName = formatGameName(game);
-      if (gameResults[gameName]) {
-        gameResults[gameName].didDailies.push(accountNum);
-      }
+    // Skip if no activity
+    if (accountData.didDailies.length === 0 && accountData.alreadyCheckedIn.length === 0) {
+      continue;
     }
-
-    // Process games that were already checked in
-    for (const game of accountData.alreadyCheckedIn) {
+    
+    // Get the new consecutive account number
+    const newAccountNumber = accountMapping[parseInt(accountIndex)];
+    const accountNum = `${newAccountNumber}${ordinalSuffix(newAccountNumber)}`;
+    
+    // Process each game
+    for (const game of [...accountData.didDailies, ...accountData.alreadyCheckedIn]) {
       const gameName = formatGameName(game);
-      if (gameResults[gameName]) {
-        gameResults[gameName].alreadyCheckedIn.push(accountNum);
+      if (!gameResults[gameName]) continue;
+      
+      // Initialize the account in this game's results if needed
+      if (!gameResults[gameName].accounts[accountNum]) {
+        gameResults[gameName].accounts[accountNum] = {
+          didDailies: false,
+          alreadyCheckedIn: false
+        };
+      }
+      
+      // Mark appropriate activity
+      if (accountData.didDailies.includes(game)) {
+        gameResults[gameName].accounts[accountNum].didDailies = true;
+      }
+      if (accountData.alreadyCheckedIn.includes(game)) {
+        gameResults[gameName].accounts[accountNum].alreadyCheckedIn = true;
       }
     }
   }
 
   // Format the message for each game
-  for (const [gameName, { alreadyCheckedIn, didDailies }] of Object.entries(gameResults)) {
-    if (alreadyCheckedIn.length || didDailies.length) {
-      discordMsg += `**${gameName}**\n`;
-      
-      if (alreadyCheckedIn.length) {
-        discordMsg += `- You've already completed daily activities on your ${formatGameList(alreadyCheckedIn)} account${alreadyCheckedIn.length > 1 ? 's' : ''}.\n`;
-      }
-      
-      if (didDailies.length) {
-        discordMsg += `- Draco has done daily activities on your ${formatGameList(didDailies)} account${didDailies.length > 1 ? 's' : ''}.\n`;
-      }
-      
-      discordMsg += '\n';
+  for (const [gameName, gameData] of Object.entries(gameResults)) {
+    // Skip games with no activity
+    if (Object.keys(gameData.accounts).length === 0) continue;
+    
+    discordMsg += `**${gameName}**\n`;
+    
+    // Collect accounts for already checked in
+    const alreadyCheckedInAccounts = Object.entries(gameData.accounts)
+      .filter(([_, data]) => data.alreadyCheckedIn)
+      .map(([accountNum, _]) => accountNum);
+    
+    // Collect accounts for did dailies
+    const didDailiesAccounts = Object.entries(gameData.accounts)
+      .filter(([_, data]) => data.didDailies)
+      .map(([accountNum, _]) => accountNum);
+    
+    if (alreadyCheckedInAccounts.length) {
+      discordMsg += `- You've already completed daily activities on your ${formatGameList(alreadyCheckedInAccounts)} account${alreadyCheckedInAccounts.length > 1 ? 's' : ''}.\n`;
     }
+    
+    if (didDailiesAccounts.length) {
+      discordMsg += `- Draco has done daily activities on your ${formatGameList(didDailiesAccounts)} account${didDailiesAccounts.length > 1 ? 's' : ''}.\n`;
+    }
+    
+    discordMsg += '\n';
   }
 
   discordMsg += "You're welcome...";
@@ -259,10 +288,9 @@ function ordinalSuffix(i) {
   if (!cookies?.length) throw new Error('COOKIE environment variable not set!');
   if (!gamesList?.length) throw new Error('GAMES environment variable not set!');
 
-  // Process accounts in order
-  for (let i = 0; i < cookies.length; i++) {
-    log('info', `-- CHECKING IN FOR ACCOUNT ${i + 1} --`);
-    await run(cookies[i], gamesList[i], i);
+  for (const index in cookies) {
+    log('info', `-- CHECKING IN FOR ACCOUNT ${Number(index) + 1} --`);
+    await run(cookies[index], gamesList[index], index);
   }
 
   if (discordWebhook) {
