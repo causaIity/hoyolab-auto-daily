@@ -16,7 +16,8 @@ const endpoints = {
 
 let fatalErrors = false;
 let latestGames = [];
-const accountGamesCheckedIn = {};
+// Change to array instead of object to ensure sequential numbering
+const accountGamesCheckedIn = [];
 
 function formatGameList(items) {
   if (items.length === 1) return items[0];
@@ -32,9 +33,12 @@ async function run(cookie, games, accountIndex) {
     latestGames = games;
   }
 
-  // Initialize for this account
-  if (!accountGamesCheckedIn[accountIndex]) {
-    accountGamesCheckedIn[accountIndex] = {
+  // Ensure accountIndex is treated as a number
+  const accountIdx = parseInt(accountIndex);
+  
+  // Initialize for this account - use array index directly
+  if (!accountGamesCheckedIn[accountIdx]) {
+    accountGamesCheckedIn[accountIdx] = {
       didDailies: [],
       alreadyCheckedIn: []
     };
@@ -88,11 +92,11 @@ async function run(cookie, games, accountIndex) {
 
     if (code === '0') {
       log('info', game, successCodes[code]);
-      accountGamesCheckedIn[accountIndex].didDailies.push(game);
+      accountGamesCheckedIn[accountIdx].didDailies.push(game);
       continue;
     } else if (code === '-5003') {
       log('info', game, successCodes[code]);
-      accountGamesCheckedIn[accountIndex].alreadyCheckedIn.push(game);
+      accountGamesCheckedIn[accountIdx].alreadyCheckedIn.push(game);
       continue;
     }
 
@@ -172,11 +176,25 @@ async function discordWebhookSend() {
     "Zenless Zone Zero": { alreadyCheckedIn: [], didDailies: [] }
   };
 
-  // Process each account's results
-  for (const accountIndex in accountGamesCheckedIn) {
-    const accountData = accountGamesCheckedIn[accountIndex];
-    // Fixed: Use consecutive account numbers (1, 2, 3, 4, 5) instead of skipping
-    const accountNum = `${parseInt(accountIndex) + 1}${ordinalSuffix(parseInt(accountIndex) + 1)}`;
+  // Create a mapping from original account index to consecutive number
+  const accountMapping = {};
+  let consecutiveNumber = 1;
+  
+  // First pass: create mapping from original indices to consecutive numbers
+  for (let i = 0; i < accountGamesCheckedIn.length; i++) {
+    if (accountGamesCheckedIn[i]) {
+      accountMapping[i] = consecutiveNumber++;
+    }
+  }
+
+  // Process each account's results using the new consecutive numbering
+  for (let i = 0; i < accountGamesCheckedIn.length; i++) {
+    const accountData = accountGamesCheckedIn[i];
+    if (!accountData) continue; // Skip empty accounts
+    
+    // Use the mapping to get consecutive account numbers
+    const accountNumber = accountMapping[i];
+    const accountNum = `${accountNumber}${ordinalSuffix(accountNumber)}`;
 
     // Process games that were successfully checked in
     for (const game of accountData.didDailies) {
@@ -229,11 +247,6 @@ async function discordWebhookSend() {
   fatalErrors = true;
 }
 
-// This function isn't needed anymore
-// function formatAccountNumber(index) {
-//   return `${parseInt(index) + 1}${ordinalSuffix(parseInt(index) + 1)}`;
-// }
-
 function ordinalSuffix(i) {
   const j = i % 10, k = i % 100;
   if (j === 1 && k !== 11) return 'st';
@@ -246,9 +259,10 @@ function ordinalSuffix(i) {
   if (!cookies?.length) throw new Error('COOKIE environment variable not set!');
   if (!gamesList?.length) throw new Error('GAMES environment variable not set!');
 
-  for (const index in cookies) {
-    log('info', `-- CHECKING IN FOR ACCOUNT ${Number(index) + 1} --`);
-    await run(cookies[index], gamesList[index], index);
+  // Process accounts in order
+  for (let i = 0; i < cookies.length; i++) {
+    log('info', `-- CHECKING IN FOR ACCOUNT ${i + 1} --`);
+    await run(cookies[i], gamesList[i], i);
   }
 
   if (discordWebhook) {
