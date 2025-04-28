@@ -26,7 +26,7 @@ jobs:
 
       # Download counter.json artifact if it exists
       - name: Download counter.json artifact (if exists)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           name: process-counter
           path: .
