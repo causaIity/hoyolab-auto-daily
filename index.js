@@ -19,7 +19,11 @@ const endpoints = {
 let fatalErrors = false;
 let latestGames = [];
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const counterFilePath = path.join(__dirname, 'counter.json');
+
 const accountGamesCheckedIn = {};
 
 function getCounter() {
