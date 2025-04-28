@@ -96,8 +96,11 @@ async function run(cookie, games, accountIndex) {
     log('debug', game, `Response`, json);
 
     if (code in errorCodes) {
-      log('error', game, errorCodes[code]);
-      fatalErrors = true;
+      if (code === '-100') { // Invalid cookie, a real fatal error
+        log('fatal', game, `${errorCodes[code]}`);
+      } else {
+        log('error', game, `${errorCodes[code]}`);
+      }
       continue;
     }
 
@@ -117,21 +120,34 @@ function formatGameName(code) {
   }
 }
 
+let hasFatalErrors = false;  
+let hasSoftErrors = false;   
+
 function log(type, ...data) {
   console[type](...data);
+
+  switch (type) {
+    case 'debug':
+      return;
+    case 'error':
+      hasSoftErrors = true; // Updated: soft errors like "already signed in"
+      return;
+    case 'fatal':
+      hasFatalErrors = true; // New: used only for *real* failures
+      return;
+  }
 
   if (data[0] in endpoints) {
     data[0] = data[0].toUpperCase() + msgDelimiter;
   }
 
-  if (type !== 'debug') {
-    const string = data
-      .map(value => typeof value === 'object' ? JSON.stringify(value, null, 2).replace(/^"|"$/, '') : value)
-      .join(' ');
+  const string = data
+    .map(value => typeof value === 'object' ? JSON.stringify(value, null, 2).replace(/^"|"$/, '') : value)
+    .join(' ');
 
-    messages.push({ type, string });
-  }
+  messages.push({ type, string });
 }
+
 
 async function discordWebhookSend() {
   log('debug', '\n----- DISCORD WEBHOOK -----');
@@ -190,7 +206,7 @@ function ordinalSuffix(i) {
     await discordWebhookSend();
   }
 
-  if (fatalErrors) {
+  if (hasFatalErrors) {
     console.log('');
     throw new Error('One or more fatal errors occurred.');
   }
