@@ -17,26 +17,20 @@ jobs:
         with:
           node-version: "20"
 
-      # Initialize counter.json if it doesn't exist
-      - name: Initialize counter.json (if not exists)
-        run: |
-          if [ ! -f counter.json ]; then
-            echo '{}' > counter.json  # Create a blank JSON file
-          fi
-
-      # Upload counter.json artifact after processing
-      - name: Upload counter.json artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: process-counter
-          path: counter.json
-          
-      # Download counter.json artifact if it exists
-      - name: Download counter.json artifact (if exists)
+      # Download counter.json artifact from previous run if it exists
+      - name: Download previous counter.json
         uses: actions/download-artifact@v4
         with:
           name: process-counter
           path: .
+          if-no-files-found: ignore
+
+      # Initialize counter.json if it doesn't exist
+      - name: Initialize counter.json (if not exists)
+        run: |
+          if [ ! -f counter.json ]; then
+            echo '{"processCounter":0}' > counter.json
+          fi
 
       - name: Check In
         run: node index.js
@@ -45,6 +39,14 @@ jobs:
           GAMES: ${{ vars.GAMES }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USER: ${{ secrets.DISCORD_USER }}
+
+      # Upload the updated counter.json for next run
+      - name: Upload updated counter.json
+        uses: actions/upload-artifact@v4
+        with:
+          name: process-counter
+          path: counter.json
+          retention-days: 2  # Keep for 1 day to ensure it's available for next run
 
   workflow-keepalive:
     if: github.event_name == 'schedule'
