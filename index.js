@@ -151,20 +151,62 @@ async function discordWebhookSend() {
 
   if (!discordWebhook?.toLowerCase().trim().startsWith('https://discord.com/api/webhooks/')) {
     log('error', 'DISCORD_WEBHOOK is not a valid Discord webhook URL.');
+    fatalErrors = true;
     return;
   }
 
-  let discordMsg = discordUser ? `<@${discordUser}>\n` : '';
+  let discordMsg = discordUser ? `<@${discordUser}> I've checked your accounts again..` : 'I\'ve checked your accounts again..';
+
+  // Define an object to store game results by account (no duplicates)
+  const gameResults = {
+    "Honkai: Star Rail": { alreadyCheckedIn: [], didDailies: [] },
+    "Genshin Impact": { alreadyCheckedIn: [], didDailies: [] },
+    "Zenless Zone Zero": { alreadyCheckedIn: [], didDailies: [] }
+  };
+
+  // Use a Set to track accounts to avoid duplicates
+  const processedAccounts = new Set();
 
   for (const accountIndex in accountGamesCheckedIn) {
     const games = accountGamesCheckedIn[accountIndex];
-    if (games.length > 0) {
-      discordMsg += `I checked your ${parseInt(accountIndex) + 1}${ordinalSuffix(parseInt(accountIndex) + 1)} account. `;
-      discordMsg += `I did dailies in ${formatGameList(games)}. You're welcome...\n\n`;
+
+    // Track the account only once per game
+    if (!processedAccounts.has(accountIndex)) {
+      processedAccounts.add(accountIndex);
+
+      for (const game of games) {
+        const gameName = formatGameName(game);
+
+        // Update game results based on whether dailies were already done or not
+        if (gameName === 'Honkai: Star Rail') {
+          gameResults['Honkai: Star Rail'].didDailies.push(formatAccountNumber(accountIndex));
+        } else if (gameName === 'Genshin Impact') {
+          gameResults['Genshin Impact'].didDailies.push(formatAccountNumber(accountIndex));
+        } else if (gameName === 'Zenless Zone Zero') {
+          gameResults['Zenless Zone Zero'].didDailies.push(formatAccountNumber(accountIndex));
+        }
+      }
     }
   }
 
-  discordMsg += messages.map(msg => `(${msg.type.toUpperCase()}) ${msg.string}`).join('\n');
+  // Format results for each game
+  for (const [gameName, { alreadyCheckedIn, didDailies }] of Object.entries(gameResults)) {
+    if (alreadyCheckedIn.length || didDailies.length) {
+      discordMsg += `**${gameName}**\n`;
+
+      if (alreadyCheckedIn.length) {
+        discordMsg += `- You’ve already completed daily activities on your ${formatGameList(alreadyCheckedIn)} account${alreadyCheckedIn.length > 1 ? 's' : ''}.\n`;
+      }
+
+      if (didDailies.length) {
+        discordMsg += `- I did daily activities on your ${formatGameList(didDailies)} account${didDailies.length > 1 ? 's' : ''}.\n`;
+      }
+
+      discordMsg += '\n';
+    }
+  }
+
+  discordMsg += "You're welcome...\n";
 
   const res = await fetch(discordWebhook, {
     method: 'POST',
@@ -178,7 +220,17 @@ async function discordWebhookSend() {
   }
 
   log('error', 'Error sending message to Discord webhook, please check URL and permissions');
+  fatalErrors = true;
 }
+
+function formatAccountNumber(index) {
+  return `${parseInt(index) + 1}${ordinalSuffix(parseInt(index) + 1)}`;
+}
+
+function formatGameList(accounts) {
+  return accounts.join(', ');
+}
+
 
 function ordinalSuffix(i) {
   const j = i % 10, k = i % 100;
