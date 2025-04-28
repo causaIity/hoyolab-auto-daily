@@ -1,29 +1,30 @@
-const fullGameNames = {
-  zzz: 'Zenless Zone Zero',
-  gi:  'Genshin Impact',
-  hsr: 'Honkai: Star Rail',
-  hi3: 'Honkai Impact 3rd',
-  tot: 'Tears of Themis',
+#!/usr/bin/env node
+
+const cookies = process.env.COOKIE.split('\n').map(s => s.trim());
+const gamesList = process.env.GAMES.split('\n').map(s => s.trim());
+const discordWebhook = process.env.DISCORD_WEBHOOK;
+const discordUser = process.env.DISCORD_USER;
+const msgDelimiter = ':';
+const messages = [];
+const endpoints = {
+  zzz: 'https://sg-act-nap-api.hoyolab.com/event/luna/zzz/os/sign?act_id=e202406031448091',
+  gi:  'https://sg-hk4e-api.hoyolab.com/event/sol/sign?act_id=e202102251931481',
+  hsr: 'https://sg-public-api.hoyolab.com/event/luna/os/sign?act_id=e202303301540311',
+  hi3: 'https://sg-public-api.hoyolab.com/event/mani/sign?act_id=e202110291205111',
+  tot: 'https://sg-public-api.hoyolab.com/event/luna/os/sign?act_id=e202202281857121',
+};
+
+let hasErrors = false;
+let latestGames = [];
+const accountGamesCheckedIn = {}; // Tracks successful games per account
+
+function formatGameList(games) {
+  if (games.length === 1) return games[0];
+  if (games.length === 2) return `${games[0]} and ${games[1]}`;
+  return `${games.slice(0, -1).join(', ')}, and ${games.slice(-1)}`;
 }
 
-let accountResults = [];
-
-function formatListForSentence(arr) {
-  if (arr.length === 0) return '';
-  if (arr.length === 1) return arr[0];
-  if (arr.length === 2) return `${arr[0]} and ${arr[1]}`;
-  return `${arr.slice(0, -1).join(', ')}, and ${arr[arr.length - 1]}`;
-}
-
-// updated run() function
-async function run(cookie, games, accountNumber) {
-  const result = {
-    accountNumber,
-    alreadyDone: [],
-    didToday: [],
-    errors: []
-  };
-
+async function run(cookie, games, accountIndex) {
   if (!games) {
     games = latestGames;
   } else {
@@ -31,13 +32,15 @@ async function run(cookie, games, accountNumber) {
     latestGames = games;
   }
 
+  accountGamesCheckedIn[accountIndex] = [];
+
   for (let game of games) {
     game = game.toLowerCase();
 
     log('debug', `\n----- CHECKING IN FOR ${game} -----`);
 
     if (!(game in endpoints)) {
-      log('error', `Game ${game} is invalid.`);
+      log('error', `Game ${game} is invalid. Available games are: zzz, gi, hsr, hi3, and tot`);
       continue;
     }
 
@@ -47,121 +50,143 @@ async function run(cookie, games, accountNumber) {
 
     url.searchParams.set('lang', 'en-us');
 
-    const body = JSON.stringify({
-      lang: 'en-us',
-      act_id: actId
-    });
-
+    const body = JSON.stringify({ lang: 'en-us', act_id: actId });
     const headers = new Headers();
+
     headers.set('accept', 'application/json, text/plain, */*');
     headers.set('accept-encoding', 'gzip, deflate, br, zstd');
     headers.set('accept-language', 'en-US,en;q=0.6');
     headers.set('connection', 'keep-alive');
     headers.set('origin', 'https://act.hoyolab.com');
-    headers.set('referer', 'https://act.hoyolab.com');
-    headers.set('content-type', 'application/json;charset=UTF-8'); // fixed typo
+    headers.set('referrer', 'https://act.hoyolab.com');
+    headers.set('content-type', 'application/json;charset=UTF-8');
     headers.set('cookie', cookie);
     headers.set('sec-ch-ua', '"Not/A)Brand";v="8", "Chromium";v="126", "Brave";v="126"');
     headers.set('sec-ch-ua-mobile', '?0');
     headers.set('sec-ch-ua-platform', '"Linux"');
     headers.set('sec-fetch-dest', 'empty');
-    headers.set('sec-fetch-mode', 'cors');
+    headers.set('sec-fech-mode', 'cors');
     headers.set('sec-fetch-site', 'same-site');
     headers.set('sec-gpc', '1');
-    headers.set('user-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36');
     headers.set("x-rpc-signgame", game);
+    headers.set('user-agent', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36');
 
-    try {
-      const res = await fetch(url, { method: 'POST', headers, body });
-      const json = await res.json();
-      const code = String(json.retcode);
+    const res = await fetch(url, { method: 'POST', headers, body });
+    const json = await res.json();
+    const code = String(json.retcode);
+    const successCodes = {
+      '0': 'Successfully checked in!',
+      '-5003': 'Already checked in for today',
+    };
 
-      if (code === '0') {
-        log('info', game, 'Successfully checked in!');
-        result.didToday.push(fullGameNames[game]);
-      } else if (code === '-5003') {
-        log('info', game, 'Already checked in for today');
-        result.alreadyDone.push(fullGameNames[game]);
-      } else if (code === '-100') {
-        log('error', game, 'Error not logged in. Cookie invalid.');
-        result.errors.push(fullGameNames[game]);
-      } else if (code === '-10002') {
-        log('error', game, 'Error: you have not played this game.');
-        result.errors.push(fullGameNames[game]);
-      } else {
-        log('error', game, 'Undocumented error occurred.');
-        result.errors.push(fullGameNames[game]);
-      }
-    } catch (error) {
-      log('error', game, 'Network error during fetch.');
-      result.errors.push(fullGameNames[game]);
+    if (code in successCodes) {
+      log('info', game, `${successCodes[code]}`);
+      accountGamesCheckedIn[accountIndex].push(formatGameName(game)); // Track
+      continue;
     }
-  }
 
-  accountResults.push(result);
+    const errorCodes = {
+      '-100': 'Error not logged in. Your cookie is invalid, try setting up again',
+      '-10002': 'Error not found. You haven\'t played this game',
+    };
+
+    log('debug', game, `Headers`, Object.fromEntries(res.headers));
+    log('debug', game, `Response`, json);
+
+    if (code in errorCodes) {
+      log('error', game, `${errorCodes[code]}`);
+      continue;
+    }
+
+    log('error', game, `Error undocumented, report to Issues page if this persists`);
+  }
 }
 
-// updated log() function (minor, clean)
+function formatGameName(code) {
+  switch (code) {
+    case 'zzz': return 'Zenless Zone Zero';
+    case 'gi':  return 'Genshin Impact';
+    case 'hsr': return 'Honkai: Star Rail';
+    case 'hi3': return 'Honkai Impact 3rd';
+    case 'tot': return 'Tears of Themis';
+    default: return code.toUpperCase();
+  }
+}
+
 function log(type, ...data) {
-  if (type !== 'debug') {
-    console[type](...data);
+  console[type](...data);
+
+  switch (type) {
+    case 'debug': return;
+    case 'error': hasErrors = true;
   }
-  if (type === 'error') {
-    hasErrors = true;
+
+  if (data[0] in endpoints) {
+    data[0] = data[0].toUpperCase() + msgDelimiter;
   }
+
+  const string = data
+    .map(value => typeof value === 'object' ? JSON.stringify(value, null, 2).replace(/^"|"$/, '') : value)
+    .join(' ');
+
+  messages.push({ type, string });
 }
 
-// updated discordWebhookSend() function
 async function discordWebhookSend() {
   log('debug', '\n----- DISCORD WEBHOOK -----');
 
   if (!discordWebhook.toLowerCase().trim().startsWith('https://discord.com/api/webhooks/')) {
-    log('error', 'DISCORD_WEBHOOK is invalid.');
+    log('error', 'DISCORD_WEBHOOK is not a valid Discord webhook URL.');
     return;
   }
 
-  let discordMsg = "";
+  let discordMsg = discordUser ? `<@${discordUser}>\n` : '';
 
-  if (discordUser) {
-    discordMsg += `<@${discordUser}> `;
-  }
-
-  for (const result of accountResults) {
-    const suffixes = ['th', 'st', 'nd', 'rd'];
-    const v = result.accountNumber % 100;
-    const suffix = (v > 10 && v < 20) ? 'th' : (suffixes[v % 10] || 'th');
-
-    if (result.errors.length > 0) {
-      discordMsg += `Give me another cookie for ${formatListForSentence(result.errors)}...\n`;
-    } else {
-      let message = `I checked your ${result.accountNumber}${suffix} account. `;
-
-      if (result.alreadyDone.length) {
-        message += `Your dailies were already completed in ${formatListForSentence(result.alreadyDone)}`;
-      }
-      if (result.didToday.length) {
-        if (result.alreadyDone.length) {
-          message += `, but I did them in ${formatListForSentence(result.didToday)}`;
-        } else {
-          message += `I did them in ${formatListForSentence(result.didToday)}`;
-        }
-      }
-      message += `. You're welcome...\n`;
-      discordMsg += message;
+  for (const accountIndex in accountGamesCheckedIn) {
+    const games = accountGamesCheckedIn[accountIndex];
+    if (games.length > 0) {
+      discordMsg += `I checked your ${parseInt(accountIndex) + 1}${ordinalSuffix(parseInt(accountIndex) + 1)} account. `;
+      discordMsg += `I did dailies in ${formatGameList(games)}. You're welcome...\n\n`;
     }
   }
+
+  discordMsg += messages.map(msg => `(${msg.type.toUpperCase()}) ${msg.string}`).join('\n');
 
   const res = await fetch(discordWebhook, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ content: discordMsg })
+    body: JSON.stringify({ content: discordMsg }),
   });
 
   if (res.status === 204) {
-    log('info', 'Successfully sent message to Discord!');
+    log('info', 'Successfully sent message to Discord webhook!');
     return;
   }
 
-  log('error', 'Error sending Discord message.');
+  log('error', 'Error sending message to Discord webhook, please check URL and permissions');
 }
 
+function ordinalSuffix(i) {
+  const j = i % 10, k = i % 100;
+  if (j == 1 && k != 11) return 'st';
+  if (j == 2 && k != 12) return 'nd';
+  if (j == 3 && k != 13) return 'rd';
+  return 'th';
+}
+
+if (!cookies || !cookies.length) throw new Error('COOKIE environment variable not set!');
+if (!gamesList || !gamesList.length) throw new Error('GAMES environment variable not set!');
+
+for (const index in cookies) {
+  log('info', `-- CHECKING IN FOR ACCOUNT ${Number(index) + 1} --`);
+  await run(cookies[index], gamesList[index], index);
+}
+
+if (discordWebhook && URL.canParse(discordWebhook)) {
+  await discordWebhookSend();
+}
+
+if (hasErrors) {
+  console.log('');
+  throw new Error('Error(s) occurred.');
+}
