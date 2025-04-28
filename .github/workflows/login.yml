@@ -41,7 +41,7 @@ jobs:
 
       # Upload counter.json artifact after processing
       - name: Upload counter.json artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: process-counter
           path: counter.json
