@@ -5,8 +5,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';  // <-- Add this import
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);  // <-- This will get the directory name from the filename
-import fs from 'fs';
-import path from 'path';
 const cookies = process.env.COOKIE?.split('\n').map(s => s.trim());
 const gamesList = process.env.GAMES?.split('\n').map(s => s.trim());
 const discordWebhook = process.env.DISCORD_WEBHOOK;
