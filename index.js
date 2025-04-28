@@ -18,10 +18,10 @@ let fatalErrors = false;
 let latestGames = [];
 const accountGamesCheckedIn = {};
 
-function formatGameList(games) {
-  if (games.length === 1) return games[0];
-  if (games.length === 2) return `${games[0]} and ${games[1]}`;
-  return `${games.slice(0, -1).join(', ')}, and ${games.slice(-1)}`;
+function formatGameList(items) {
+  if (items.length === 1) return items[0];
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(', ')}, and ${items.slice(-1)}`;
 }
 
 async function run(cookie, games, accountIndex) {
@@ -32,7 +32,13 @@ async function run(cookie, games, accountIndex) {
     latestGames = games;
   }
 
-  accountGamesCheckedIn[accountIndex] = [];
+  // Initialize for this account
+  if (!accountGamesCheckedIn[accountIndex]) {
+    accountGamesCheckedIn[accountIndex] = {
+      didDailies: [],
+      alreadyCheckedIn: []
+    };
+  }
 
   for (let game of games) {
     game = game.toLowerCase();
@@ -80,9 +86,13 @@ async function run(cookie, games, accountIndex) {
       '-5003': 'Already checked in for today',
     };
 
-    if (code in successCodes) {
+    if (code === '0') {
       log('info', game, successCodes[code]);
-      accountGamesCheckedIn[accountIndex].push(formatGameName(game));
+      accountGamesCheckedIn[accountIndex].didDailies.push(game);
+      continue;
+    } else if (code === '-5003') {
+      log('info', game, successCodes[code]);
+      accountGamesCheckedIn[accountIndex].alreadyCheckedIn.push(game);
       continue;
     }
 
@@ -145,7 +155,6 @@ function log(type, ...data) {
   messages.push({ type, string });
 }
 
-
 async function discordWebhookSend() {
   log('debug', '\n----- DISCORD WEBHOOK -----');
 
@@ -155,7 +164,7 @@ async function discordWebhookSend() {
     return;
   }
 
-  let discordMsg = discordUser ? `<@${discordUser}> I've checked your accounts again..` : 'I\'ve checked your accounts again..';
+  let discordMsg = discordUser ? `<@${discordUser}> I've checked your accounts again..\n\n` : 'I\'ve checked your accounts again..\n\n';
 
   const gameResults = {
     "Honkai: Star Rail": { alreadyCheckedIn: [], didDailies: [] },
@@ -163,38 +172,46 @@ async function discordWebhookSend() {
     "Zenless Zone Zero": { alreadyCheckedIn: [], didDailies: [] }
   };
 
+  // Process each account's results
   for (const accountIndex in accountGamesCheckedIn) {
-    const games = accountGamesCheckedIn[accountIndex];
-    for (const game of games) {
+    const accountData = accountGamesCheckedIn[accountIndex];
+    const accountNum = formatAccountNumber(accountIndex);
+
+    // Process games that were successfully checked in
+    for (const game of accountData.didDailies) {
       const gameName = formatGameName(game);
-      if (gameName === 'Honkai: Star Rail') {
-        gameResults['Honkai: Star Rail'].didDailies.push(formatAccountNumber(accountIndex));
-      } else if (gameName === 'Genshin Impact') {
-        gameResults['Genshin Impact'].didDailies.push(formatAccountNumber(accountIndex));
-      } else if (gameName === 'Zenless Zone Zero') {
-        gameResults['Zenless Zone Zero'].didDailies.push(formatAccountNumber(accountIndex));
+      if (gameResults[gameName]) {
+        gameResults[gameName].didDailies.push(accountNum);
+      }
+    }
+
+    // Process games that were already checked in
+    for (const game of accountData.alreadyCheckedIn) {
+      const gameName = formatGameName(game);
+      if (gameResults[gameName]) {
+        gameResults[gameName].alreadyCheckedIn.push(accountNum);
       }
     }
   }
 
-  // Format results for each game
+  // Format the message for each game
   for (const [gameName, { alreadyCheckedIn, didDailies }] of Object.entries(gameResults)) {
     if (alreadyCheckedIn.length || didDailies.length) {
       discordMsg += `**${gameName}**\n`;
-
+      
       if (alreadyCheckedIn.length) {
-        discordMsg += `- You’ve already completed daily activities on your ${formatGameList(alreadyCheckedIn)} account${alreadyCheckedIn.length > 1 ? 's' : ''}.\n`;
+        discordMsg += `- You've already completed dailies on your ${formatGameList(alreadyCheckedIn)} account${alreadyCheckedIn.length > 1 ? 's' : ''}.\n`;
       }
-
+      
       if (didDailies.length) {
-        discordMsg += `- I did daily activities on your ${formatGameList(didDailies)} account${didDailies.length > 1 ? 's' : ''}.\n`;
+        discordMsg += `- I did the dailies on your ${formatGameList(didDailies)} account${didDailies.length > 1 ? 's' : ''}.\n`;
       }
-
+      
       discordMsg += '\n';
     }
   }
 
-  discordMsg += "You're welcome...\n";
+  discordMsg += "You're welcome...";
 
   const res = await fetch(discordWebhook, {
     method: 'POST',
