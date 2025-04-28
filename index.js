@@ -18,12 +18,6 @@ let fatalErrors = false;
 let latestGames = [];
 const accountGamesCheckedIn = {};
 
-function formatGameList(games) {
-  if (games.length === 1) return games[0];
-  if (games.length === 2) return `${games[0]} and ${games[1]}`;
-  return `${games.slice(0, -1).join(', ')}, and ${games.slice(-1)}`;
-}
-
 async function run(cookie, games, accountIndex) {
   if (!games) {
     games = latestGames;
