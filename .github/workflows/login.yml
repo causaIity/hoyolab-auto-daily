@@ -17,20 +17,23 @@ jobs:
         with:
           node-version: "20"
 
-      # Download counter.json artifact from previous run if it exists
-      - name: Download previous counter.json
-        uses: actions/download-artifact@v4
+      # Restore counter.json from cache
+      - name: Restore counter cache
+        uses: actions/cache@v3
+        id: counter-cache
         with:
-          name: process-counter
-          path: .
-          if-no-files-found: ignore
+          path: counter.json
+          key: counter-${{ github.ref }}
+          restore-keys: |
+            counter-${{ github.ref }}
 
       # Initialize counter.json if it doesn't exist
-      - name: Initialize counter.json (if not exists)
+      - name: Initialize counter.json
         run: |
           if [ ! -f counter.json ]; then
             echo '{"processCounter":0}' > counter.json
           fi
+          echo "Current counter value: $(cat counter.json)"
 
       - name: Check In
         run: node index.js
@@ -40,13 +43,15 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USER: ${{ secrets.DISCORD_USER }}
 
-      # Upload the updated counter.json for next run
-      - name: Upload updated counter.json
-        uses: actions/upload-artifact@v4
+      # Save counter.json to cache
+      - name: Save counter cache
+        uses: actions/cache@v3
+        if: always()  # Save even if previous steps fail
         with:
-          name: process-counter
           path: counter.json
-          retention-days: 2  # Keep for 1 day to ensure it's available for next run
+          key: counter-${{ github.ref }}
+          restore-keys: |
+            counter-${{ github.ref }}
 
   workflow-keepalive:
     if: github.event_name == 'schedule'
