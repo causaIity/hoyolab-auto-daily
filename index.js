@@ -175,7 +175,8 @@ async function discordWebhookSend() {
   // Process each account's results
   for (const accountIndex in accountGamesCheckedIn) {
     const accountData = accountGamesCheckedIn[accountIndex];
-    const accountNum = formatAccountNumber(accountIndex);
+    // Fixed: Use consecutive account numbers (1, 2, 3, 4, 5) instead of skipping
+    const accountNum = `${parseInt(accountIndex) + 1}${ordinalSuffix(parseInt(accountIndex) + 1)}`;
 
     // Process games that were successfully checked in
     for (const game of accountData.didDailies) {
@@ -228,11 +229,10 @@ async function discordWebhookSend() {
   fatalErrors = true;
 }
 
-function formatAccountNumber(index) {
-  // Add 1 to index to ensure the sequence starts from 1
-  const accountNum = parseInt(index) + 1;
-  return `${accountNum}${ordinalSuffix(accountNum)}`;
-}
+// This function isn't needed anymore
+// function formatAccountNumber(index) {
+//   return `${parseInt(index) + 1}${ordinalSuffix(parseInt(index) + 1)}`;
+// }
 
 function ordinalSuffix(i) {
   const j = i % 10, k = i % 100;
