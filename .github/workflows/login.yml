@@ -17,6 +17,14 @@ jobs:
         with:
           node-version: "20"
 
+      # Initialize counter.json if it doesn't exist
+      - name: Initialize counter.json (if not exists)
+        run: |
+          if [ ! -f counter.json ]; then
+            echo '{}' > counter.json  # Create a blank JSON file
+          fi
+
+      # Download counter.json artifact if it exists
       - name: Download counter.json artifact (if exists)
         uses: actions/download-artifact@v2
         with:
@@ -31,6 +39,7 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USER: ${{ secrets.DISCORD_USER }}
 
+      # Upload counter.json artifact after processing
       - name: Upload counter.json artifact
         uses: actions/upload-artifact@v2
         with:
