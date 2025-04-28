@@ -164,7 +164,7 @@ async function discordWebhookSend() {
     return;
   }
 
-  let discordMsg = discordUser ? `<@${discordUser}> I've checked your accounts again..\n\n` : 'I\'ve checked your accounts again..\n\n';
+  let discordMsg = discordUser ? `<@${discordUser}> Draco has checked your accounts again..\n\n` : 'Draco has checked your accounts again..\n\n';
 
   const gameResults = {
     "Honkai: Star Rail": { alreadyCheckedIn: [], didDailies: [] },
@@ -200,11 +200,11 @@ async function discordWebhookSend() {
       discordMsg += `**${gameName}**\n`;
       
       if (alreadyCheckedIn.length) {
-        discordMsg += `- You've already completed dailies on your ${formatGameList(alreadyCheckedIn)} account${alreadyCheckedIn.length > 1 ? 's' : ''}.\n`;
+        discordMsg += `- You've already completed daily activities on your ${formatGameList(alreadyCheckedIn)} account${alreadyCheckedIn.length > 1 ? 's' : ''}.\n`;
       }
       
       if (didDailies.length) {
-        discordMsg += `- I did the dailies on your ${formatGameList(didDailies)} account${didDailies.length > 1 ? 's' : ''}.\n`;
+        discordMsg += `- Draco has done daily activities on your ${formatGameList(didDailies)} account${didDailies.length > 1 ? 's' : ''}.\n`;
       }
       
       discordMsg += '\n';
@@ -229,7 +229,9 @@ async function discordWebhookSend() {
 }
 
 function formatAccountNumber(index) {
-  return `${parseInt(index) + 1}${ordinalSuffix(parseInt(index) + 1)}`;
+  // Add 1 to index to ensure the sequence starts from 1
+  const accountNum = parseInt(index) + 1;
+  return `${accountNum}${ordinalSuffix(accountNum)}`;
 }
 
 function ordinalSuffix(i) {
