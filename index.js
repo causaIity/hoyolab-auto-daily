@@ -124,19 +124,23 @@ let hasFatalErrors = false;
 let hasSoftErrors = false;   
 
 function log(type, ...data) {
-  console[type](...data);
-
-  switch (type) {
-    case 'debug':
-      return;
-    case 'error':
-      hasSoftErrors = true; // Updated: soft errors like "already signed in"
-      return;
-    case 'fatal':
-      hasFatalErrors = true; // New: used only for *real* failures
-      return;
+  // Validate that type is a valid log method
+  const validTypes = ['log', 'info', 'warn', 'error', 'debug'];
+  
+  if (validTypes.includes(type)) {
+    console[type](...data); // Log data based on type
+  } else {
+    console.log('Invalid log type:', type, ...data); // Fallback if type is not valid
   }
 
+  // Handle error tracking based on the log type
+  switch (type) {
+    case 'debug': return;
+    case 'error': hasSoftErrors = true; // Updated: soft errors like "already signed in"
+    case 'fatal': hasFatalErrors = true; // New: used only for *real* failures
+  }
+
+  // Handle specific game-based logging formatting
   if (data[0] in endpoints) {
     data[0] = data[0].toUpperCase() + msgDelimiter;
   }
@@ -147,7 +151,6 @@ function log(type, ...data) {
 
   messages.push({ type, string });
 }
-
 
 async function discordWebhookSend() {
   log('debug', '\n----- DISCORD WEBHOOK -----');
