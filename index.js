@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 const cookies = process.env.COOKIE?.split('\n').map(s => s.trim());
 const gamesList = process.env.GAMES?.split('\n').map(s => s.trim());
 const discordWebhook = process.env.DISCORD_WEBHOOK;
