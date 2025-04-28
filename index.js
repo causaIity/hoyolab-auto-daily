@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+const fs = require('fs');
+const path = require('path');
 const cookies = process.env.COOKIE?.split('\n').map(s => s.trim());
 const gamesList = process.env.GAMES?.split('\n').map(s => s.trim());
 const discordWebhook = process.env.DISCORD_WEBHOOK;
@@ -16,7 +18,29 @@ const endpoints = {
 
 let fatalErrors = false;
 let latestGames = [];
+
+const counterFilePath = path.join(__dirname, 'counter.json');
 const accountGamesCheckedIn = {};
+
+function getCounter() {
+  try {
+    const data = fs.readFileSync(counterFilePath);
+    const json = JSON.parse(data);
+    return json.processCounter || 0;
+  } catch (error) {
+    console.error('Error reading counter file:', error);
+    return 0; // Default to 0 if the file doesn't exist or an error occurs
+  }
+}
+
+function setCounter(newCounter) {
+  try {
+    const data = { processCounter: newCounter };
+    fs.writeFileSync(counterFilePath, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error('Error writing counter file:', error);
+  }
+}
 
 function formatGameList(items) {
   if (items.length === 1) return items[0];
@@ -160,13 +184,19 @@ function log(type, ...data) {
 async function discordWebhookSend() {
   log('debug', '\n----- DISCORD WEBHOOK -----');
 
+  let processCounter = getCounter();  // Load the current counter
+
+  processCounter++;
+
+  setCounter(processCounter);  // Save the updated counter back to the file
+
   if (!discordWebhook?.toLowerCase().trim().startsWith('https://discord.com/api/webhooks/')) {
     log('error', 'DISCORD_WEBHOOK is not a valid Discord webhook URL.');
     fatalErrors = true;
     return;
   }
 
-  let discordMsg = discordUser ? `<@${discordUser}> Draco has checked your accounts again..\n\n` : 'Draco has checked your accounts again..\n\n';
+  let discordMsg = discordUser ? `<@${discordUser}> Draco has checked your accounts again.. That's ${processCounter} times now...\n\n` : `Draco has checked your accounts again.. That's ${processCounter} times now...\n\n`;
 
   // Initialize game results structure
   const gameResults = {
