@@ -2,7 +2,7 @@ name: Daily check in
 
 on:
   schedule:
-    - cron: "0 22 * * *" # scheduled at 06:00 (UTC+8) everyday
+    - cron: "0 22 * * *"  # scheduled at 06:00 (UTC+8) everyday
   workflow_dispatch:
 
 jobs:
@@ -17,6 +17,12 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Download counter.json artifact (if exists)
+        uses: actions/download-artifact@v2
+        with:
+          name: process-counter
+          path: .
+
       - name: Check In
         run: node index.js
         env:
@@ -24,6 +30,13 @@ jobs:
           GAMES: ${{ vars.GAMES }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USER: ${{ secrets.DISCORD_USER }}
+
+      - name: Upload counter.json artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: process-counter
+          path: counter.json
+
   workflow-keepalive:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
