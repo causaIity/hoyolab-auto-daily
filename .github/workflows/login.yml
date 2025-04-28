@@ -24,6 +24,13 @@ jobs:
             echo '{}' > counter.json  # Create a blank JSON file
           fi
 
+      # Upload counter.json artifact after processing
+      - name: Upload counter.json artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: process-counter
+          path: counter.json
+          
       # Download counter.json artifact if it exists
       - name: Download counter.json artifact (if exists)
         uses: actions/download-artifact@v4
@@ -38,13 +45,6 @@ jobs:
           GAMES: ${{ vars.GAMES }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USER: ${{ secrets.DISCORD_USER }}
-
-      # Upload counter.json artifact after processing
-      - name: Upload counter.json artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: process-counter
-          path: counter.json
 
   workflow-keepalive:
     if: github.event_name == 'schedule'
