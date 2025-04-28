@@ -41,7 +41,6 @@ async function run(cookie, games, accountIndex) {
 
     if (!(game in endpoints)) {
       log('error', `Game ${game} is invalid. Available games are: zzz, gi, hsr, hi3, and tot`);
-      fatalErrors = true;
       continue;
     }
 
@@ -95,17 +94,17 @@ async function run(cookie, games, accountIndex) {
     log('debug', game, `Headers`, Object.fromEntries(res.headers));
     log('debug', game, `Response`, json);
 
+    // Handling known error codes without stopping execution
     if (code in errorCodes) {
-      if (code === '-100') { // Invalid cookie, a real fatal error
-        log('fatal', game, `${errorCodes[code]}`);
-      } else {
+      if (code === '-100') { // Invalid cookie, we will log it, but not treat it as fatal
         log('error', game, `${errorCodes[code]}`);
+      } else {
+        log('error', game, `${errorCodes[code]}`); // For -10002, already checked in, etc.
       }
       continue;
     }
 
     log('error', game, 'Error undocumented, report to Issues page if this persists');
-    fatalErrors = true;
   }
 }
 
@@ -120,27 +119,21 @@ function formatGameName(code) {
   }
 }
 
-let hasFatalErrors = false;  
 let hasSoftErrors = false;   
 
 function log(type, ...data) {
-  // Validate that type is a valid log method
-  const validTypes = ['log', 'info', 'warn', 'error', 'debug'];
-  
-  if (validTypes.includes(type)) {
-    console[type](...data); // Log data based on type
-  } else {
-    console.log('Invalid log type:', type, ...data); // Fallback if type is not valid
-  }
+  console[type](...data);
 
-  // Handle error tracking based on the log type
   switch (type) {
-    case 'debug': return;
-    case 'error': hasSoftErrors = true; // Updated: soft errors like "already signed in"
-    case 'fatal': hasFatalErrors = true; // New: used only for *real* failures
+    case 'debug':
+      return;
+    case 'error':
+      hasSoftErrors = true; // Soft errors like "already signed in"
+      return;
+    case 'fatal':
+      return; // No fatal errors will stop execution now
   }
 
-  // Handle specific game-based logging formatting
   if (data[0] in endpoints) {
     data[0] = data[0].toUpperCase() + msgDelimiter;
   }
@@ -152,12 +145,12 @@ function log(type, ...data) {
   messages.push({ type, string });
 }
 
+
 async function discordWebhookSend() {
   log('debug', '\n----- DISCORD WEBHOOK -----');
 
   if (!discordWebhook?.toLowerCase().trim().startsWith('https://discord.com/api/webhooks/')) {
     log('error', 'DISCORD_WEBHOOK is not a valid Discord webhook URL.');
-    fatalErrors = true;
     return;
   }
 
@@ -185,7 +178,6 @@ async function discordWebhookSend() {
   }
 
   log('error', 'Error sending message to Discord webhook, please check URL and permissions');
-  fatalErrors = true;
 }
 
 function ordinalSuffix(i) {
@@ -209,8 +201,5 @@ function ordinalSuffix(i) {
     await discordWebhookSend();
   }
 
-  if (hasFatalErrors) {
-    console.log('');
-    throw new Error('One or more fatal errors occurred.');
-  }
+  console.log('Finished checking in all accounts.');
 })();
