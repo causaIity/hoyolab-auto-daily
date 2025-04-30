@@ -1,11 +1,13 @@
 name: Daily check in
 on:
   schedule:
-    - cron: "0 22 * * *"  # Fixed cron syntax error
+    - cron: "0 22 * * *"
   workflow_dispatch:
 jobs:
   check-in:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Need write permission to push changes back to repo
     steps:
       - name: Clone Repo
         uses: actions/checkout@v4
@@ -15,17 +17,7 @@ jobs:
         with:
           node-version: "20"
       
-      # Restore counter from cache using a static key
-      - name: Restore counter from cache
-        id: restore-counter
-        uses: actions/cache/restore@v4
-        with:
-          path: counter/counter.json
-          key: counter-cache-key
-          restore-keys: |
-            counter-cache-key
-      
-      # Ensure the counter directory exists and initialize if needed
+      # Initialize counter.json if it doesn't exist
       - name: Initialize counter if needed
         run: |
           mkdir -p counter
@@ -45,18 +37,20 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USER: ${{ secrets.DISCORD_USER }}
       
-      # Save the updated counter to cache
-      - name: Save updated counter to cache
-        uses: actions/cache/save@v4
-        with:
-          path: counter/counter.json
-          key: counter-cache-key
-      
       # Debug output to verify counter is updated
-      - name: Debug - Show updated counter
+      - name: Show updated counter
         run: |
           echo "Updated counter state:"
           cat counter/counter.json
+      
+      # Commit and push the updated counter back to the repository
+      - name: Commit and push counter updates
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+          git add counter/counter.json
+          git commit -m "Update counter after check-in [skip ci]" || echo "No changes to commit"
+          git push
   
   workflow-keepalive:
     if: github.event_name == 'schedule'
