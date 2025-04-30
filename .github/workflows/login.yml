@@ -47,11 +47,16 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USER: ${{ secrets.DISCORD_USER }}
 
+      - name: Move counter.json into folder for upload
+        run: |
+          mkdir -p counter
+          cp counter.json counter/counter.json
+
       - name: Upload updated counter.json
         uses: actions/upload-artifact@v4
         with:
           name: counter-artifact
-          path: counter.json
+          path: counter
           overwrite: true
 
   workflow-keepalive:
