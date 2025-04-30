@@ -2,9 +2,9 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';  // <-- Add this import
+import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);  // <-- This will get the directory name from the filename
+const __dirname = path.dirname(__filename);
 const cookies = process.env.COOKIE?.split('\n').map(s => s.trim());
 const gamesList = process.env.GAMES?.split('\n').map(s => s.trim());
 const discordWebhook = process.env.DISCORD_WEBHOOK;
@@ -22,7 +22,8 @@ const endpoints = {
 let fatalErrors = false;
 let latestGames = [];
 
-const counterFilePath = path.join(__dirname, 'counter.json');
+// THIS IS THE KEY CHANGE - Use counter/counter.json consistently
+const counterFilePath = path.join(__dirname, 'counter', 'counter.json');
 
 const accountGamesCheckedIn = {};
 
@@ -46,11 +47,20 @@ function getCounter() {
 
 function setCounter(newCounter) {
   try {
+    // Make sure the counter directory exists
+    const counterDir = path.dirname(counterFilePath);
+    if (!fs.existsSync(counterDir)) {
+      fs.mkdirSync(counterDir, { recursive: true });
+    }
+    
     const data = { 
       processCounter: newCounter,
       lastUpdated: new Date().toISOString()  // Add timestamp for debugging
     };
     fs.writeFileSync(counterFilePath, JSON.stringify(data, null, 2));
+    
+    // For debugging - print counter value
+    console.log(`Updated counter value to: ${newCounter}`);
   } catch (error) {
     console.error('Error writing counter file:', error);
   }
@@ -199,6 +209,7 @@ async function discordWebhookSend() {
   log('debug', '\n----- DISCORD WEBHOOK -----');
 
   let processCounter = getCounter();  // Load the current counter
+  console.log(`Current counter value before increment: ${processCounter}`);
 
   processCounter++;
 
