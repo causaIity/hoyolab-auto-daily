@@ -22,7 +22,7 @@ const endpoints = {
 let fatalErrors = false;
 let latestGames = [];
 
-// THIS IS THE KEY CHANGE - Use counter/counter.json consistently
+// Use counter/counter.json consistently and ensure it's relative to project root
 const counterFilePath = path.join(__dirname, 'counter', 'counter.json');
 
 const accountGamesCheckedIn = {};
