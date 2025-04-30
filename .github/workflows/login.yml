@@ -21,12 +21,14 @@ jobs:
       - name: Ensure counter directory exists
         run: mkdir -p counter
 
-      - name: Try to download previous counter artifact (optional)
-        continue-on-error: true
-        uses: actions/download-artifact@v4
+      - name: Restore counter from cache
+        id: restore-counter
+        uses: actions/cache@v4
         with:
-          name: counter-artifact
-          path: counter
+          path: counter/counter.json
+          key: counter-key-${{ github.run_number }}
+          restore-keys: |
+            counter-key
 
       - name: Restore or Initialize counter.json
         run: |
@@ -47,17 +49,18 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USER: ${{ secrets.DISCORD_USER }}
 
-      - name: Move counter.json into folder for upload
+      - name: Move counter.json into folder for cache update
         run: |
           mkdir -p counter
           cp counter.json counter/counter.json
 
-      - name: Upload updated counter.json
-        uses: actions/upload-artifact@v4
+      - name: Save updated counter to cache
+        uses: actions/cache@v4
         with:
-          name: counter-artifact
-          path: counter
-          overwrite: true
+          path: counter/counter.json
+          key: counter-key-${{ github.run_number }}
+          restore-keys: |
+            counter-key
 
   workflow-keepalive:
     if: github.event_name == 'schedule'
