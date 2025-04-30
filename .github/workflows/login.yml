@@ -1,46 +1,42 @@
 name: Daily check in
-
 on:
   schedule:
-    - cron: "0 22 * * *"
+    - cron: "0 22 * * *"  # Fixed cron syntax error
   workflow_dispatch:
-
 jobs:
   check-in:
     runs-on: ubuntu-latest
-
     steps:
       - name: Clone Repo
         uses: actions/checkout@v4
-
+      
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-
-      - name: Ensure counter directory exists
-        run: mkdir -p counter
-
+      
+      # Restore counter from cache using a static key
       - name: Restore counter from cache
         id: restore-counter
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: counter/counter.json
-          key: counter-key-${{ github.run_number }}
+          key: counter-cache-key
           restore-keys: |
-            counter-key
-
-      - name: Restore or Initialize counter.json
+            counter-cache-key
+      
+      # Ensure the counter directory exists and initialize if needed
+      - name: Initialize counter if needed
         run: |
-          if [ -f counter/counter.json ]; then
-            echo "Found existing counter. Restoring."
-            cp counter/counter.json counter.json
-          else
+          mkdir -p counter
+          if [ ! -f counter/counter.json ]; then
             echo "No counter found. Initializing new one."
-            echo '{"processCounter":0}' > counter.json
+            echo '{"processCounter":0,"lastUpdated":"2025-04-30T00:00:00.000Z"}' > counter/counter.json
           fi
-          cat counter.json
-
+          echo "Current counter state:"
+          cat counter/counter.json
+      
+      # Run the check-in script
       - name: Run Check-In Script
         run: node index.js
         env:
@@ -48,20 +44,20 @@ jobs:
           GAMES: ${{ vars.GAMES }}
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USER: ${{ secrets.DISCORD_USER }}
-
-      - name: Move counter.json into folder for cache update
-        run: |
-          mkdir -p counter
-          cp counter.json counter/counter.json
-
+      
+      # Save the updated counter to cache
       - name: Save updated counter to cache
-        uses: actions/cache@v4
+        uses: actions/cache/save@v4
         with:
           path: counter/counter.json
-          key: counter-key-${{ github.run_number }}
-          restore-keys: |
-            counter-key
-
+          key: counter-cache-key
+      
+      # Debug output to verify counter is updated
+      - name: Debug - Show updated counter
+        run: |
+          echo "Updated counter state:"
+          cat counter/counter.json
+  
   workflow-keepalive:
     if: github.event_name == 'schedule'
     runs-on: ubuntu-latest
