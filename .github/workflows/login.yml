@@ -2,7 +2,7 @@ name: Daily check in
 
 on:
   schedule:
-    - cron: "0 22 * * *"  # scheduled at 06:00 (UTC+8) everyday
+    - cron: "0 22 * * *"
   workflow_dispatch:
 
 jobs:
@@ -17,25 +17,26 @@ jobs:
         with:
           node-version: "20"
 
-      # Restore counter.json from cache
-      - name: Restore counter cache
-        uses: actions/cache@v3
-        id: counter-cache
-        with:
-          path: counter.json
-          key: counter-${{ github.ref }}
-          restore-keys: |
-            counter-${{ github.ref }}
-
-      # Initialize counter.json if it doesn't exist
-      - name: Initialize counter.json
+      - name: Download counter artifact
+        id: download-artifact
         run: |
-          if [ ! -f counter.json ]; then
+          mkdir -p counter
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: counter-artifact
+          path: counter
+
+      - name: Restore or Initialize counter.json
+        run: |
+          if [ -f counter/counter.json ]; then
+            cp counter/counter.json counter.json
+          else
             echo '{"processCounter":0}' > counter.json
           fi
-          echo "Current counter value: $(cat counter.json)"
+          cat counter.json
 
-      - name: Check In
+      - name: Run Check-In Script
         run: node index.js
         env:
           COOKIE: ${{ secrets.COOKIE }}
@@ -43,15 +44,12 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USER: ${{ secrets.DISCORD_USER }}
 
-      # Save counter.json to cache
-      - name: Save counter cache
-        uses: actions/cache@v3
-        if: always()  # Save even if previous steps fail
+      - name: Upload counter.json as artifact
+        uses: actions/upload-artifact@v4
         with:
+          name: counter-artifact
           path: counter.json
-          key: counter-${{ github.ref }}
-          restore-keys: |
-            counter-${{ github.ref }}
+          overwrite: true  # v4 supports artifact overwrites!
 
   workflow-keepalive:
     if: github.event_name == 'schedule'
