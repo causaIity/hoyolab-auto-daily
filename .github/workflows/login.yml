@@ -21,18 +21,20 @@ jobs:
       - name: Ensure counter directory exists
         run: mkdir -p counter
 
-      - name: Download counter artifact
+      - name: Try to download previous counter artifact (optional)
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: counter-artifact
           path: counter
-        continue-on-error: true
 
       - name: Restore or Initialize counter.json
         run: |
           if [ -f counter/counter.json ]; then
+            echo "Found existing counter. Restoring."
             cp counter/counter.json counter.json
           else
+            echo "No counter found. Initializing new one."
             echo '{"processCounter":0}' > counter.json
           fi
           cat counter.json
@@ -45,7 +47,7 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USER: ${{ secrets.DISCORD_USER }}
 
-      - name: Upload updated counter
+      - name: Upload updated counter.json
         uses: actions/upload-artifact@v4
         with:
           name: counter-artifact
