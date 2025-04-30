@@ -8,6 +8,7 @@ on:
 jobs:
   check-in:
     runs-on: ubuntu-latest
+
     steps:
       - name: Clone Repo
         uses: actions/checkout@v4
@@ -17,15 +18,15 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Ensure counter directory exists
+        run: mkdir -p counter
+
       - name: Download counter artifact
-        id: download-artifact
-        run: |
-          mkdir -p counter
-        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: counter-artifact
           path: counter
+        continue-on-error: true
 
       - name: Restore or Initialize counter.json
         run: |
@@ -44,12 +45,12 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
           DISCORD_USER: ${{ secrets.DISCORD_USER }}
 
-      - name: Upload counter.json as artifact
+      - name: Upload updated counter
         uses: actions/upload-artifact@v4
         with:
           name: counter-artifact
           path: counter.json
-          overwrite: true  # v4 supports artifact overwrites!
+          overwrite: true
 
   workflow-keepalive:
     if: github.event_name == 'schedule'
